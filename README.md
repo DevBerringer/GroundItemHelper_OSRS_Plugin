@@ -70,8 +70,8 @@ If you wish to build and install the plugin manually:
 
 * `com.grounditem.helper.plugin.GroundItemFinderPlugin`: The main plugin class, handles game tick events, item scanning, and UI panel management.
 * `com.grounditem.helper.panel.GroundItemFinderPanel`: The Swing panel that displays the list of ground items and provides sorting options.
-* `com.grounditem.helper.data.GroundItemEntry`: A data class representing a single ground item with its name, ID, quantity, and location.
-* `com.grounditem.helper.util.GroundItemSortType`: An enum defining the available sorting methods for the ground item list.
+* `com.grounditem.helper.domain.GroundItemEntry`: A data class representing a single ground item with its name, ID, quantity, and location.
+* `com.grounditem.helper.domain.enums.GroundItemSortType`: An enum defining the available sorting methods for the ground item list.
 * `com.grounditem.helper.overlay.GroundItemHighlightOverlay`: Handles the drawing of the highlight on the game world tile.
 
 ## Contributing

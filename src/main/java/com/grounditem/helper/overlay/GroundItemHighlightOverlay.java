@@ -1,5 +1,6 @@
 package com.grounditem.helper.overlay;
 
+import lombok.Setter;
 import net.runelite.api.Client;
 import net.runelite.api.Perspective;
 import net.runelite.api.coords.LocalPoint;
@@ -17,20 +18,15 @@ public class GroundItemHighlightOverlay extends Overlay
 {
     private final Client client;
 
+    @Setter
     private WorldPoint highlightedTile; // The tile to highlight
 
     @Inject
     public GroundItemHighlightOverlay(Client client, TooltipManager tooltipManager)
     {
         this.client = client;
-        // Useful for potential future tooltips
-        setPosition(OverlayPosition.DYNAMIC); // Position dynamically with the game world
-        setLayer(OverlayLayer.ABOVE_SCENE); // Draw above game elements
-    }
-
-    public void setHighlightedTile(WorldPoint worldPoint)
-    {
-        this.highlightedTile = worldPoint;
+        setPosition(OverlayPosition.DYNAMIC);
+        setLayer(OverlayLayer.ABOVE_SCENE);
     }
 
     public void clearHighlightedTile()
@@ -46,7 +42,6 @@ public class GroundItemHighlightOverlay extends Overlay
             return null; // Nothing to draw
         }
 
-        // Only highlight if the tile is within the loaded scene
         if (highlightedTile.getPlane() == client.getPlane())
         {
             LocalPoint lp = LocalPoint.fromWorld(client, highlightedTile);

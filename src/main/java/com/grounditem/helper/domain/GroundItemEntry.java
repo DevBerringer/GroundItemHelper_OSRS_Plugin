@@ -1,4 +1,4 @@
-package com.grounditem.helper.data;
+package com.grounditem.helper.domain;
 
 import lombok.Value;
 import net.runelite.api.coords.WorldPoint;
@@ -10,4 +10,5 @@ public class GroundItemEntry
     int itemId;
     int quantity;
     WorldPoint location;
+    long value;
 }

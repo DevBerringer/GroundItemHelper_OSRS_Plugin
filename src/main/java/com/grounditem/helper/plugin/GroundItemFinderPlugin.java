@@ -8,7 +8,7 @@ import java.util.Objects;
 import javax.imageio.ImageIO;
 import javax.inject.Inject;
 
-import com.grounditem.helper.data.GroundItemEntry;
+import com.grounditem.helper.domain.GroundItemEntry;
 import com.grounditem.helper.panel.GroundItemFinderPanel;
 import com.grounditem.helper.overlay.GroundItemHighlightOverlay;
 import lombok.AllArgsConstructor;
@@ -28,7 +28,7 @@ import net.runelite.client.ui.overlay.OverlayManager;
 
 @Slf4j
 @PluginDescriptor(
-        name = "Ground Item Finder"
+        name = "GroundItems Finder"
 )
 @NoArgsConstructor
 @AllArgsConstructor
@@ -49,20 +49,32 @@ public class GroundItemFinderPlugin extends Plugin
     @Inject
     private GroundItemHighlightOverlay groundItemHighlightOverlay;
 
-    private final List<GroundItemEntry> nearbyItems = new ArrayList<>();
-
-    private WorldPoint currentlyHighlightedTile = null;
-    private GroundItemEntry currentlyHighlightedItem = null;
     private GroundItemFinderPanel panel;
     private NavigationButton navButton;
 
+    private final List<GroundItemEntry> nearbyItems = new ArrayList<>();
+    private WorldPoint currentlyHighlightedTile = null;
+    private GroundItemEntry currentlyHighlightedItem = null;
+
+    /**
+     * Called when the plugin is enabled.
+     * <p>
+     * This method initializes the plugin's components, including:
+     * <ul>
+     * <li>Creating the {@link GroundItemFinderPanel} and setting its highlight callback.</li>
+     * <li>Loading the plugin's navigation icon.</li>
+     * <li>Building and adding the navigation button to the RuneLite client toolbar.</li>
+     * <li>Adding the {@link GroundItemHighlightOverlay} to the overlay manager for rendering.</li>
+     * </ul>
+     * A log message is also produced to indicate the plugin has started.
+     */
     @Override
     protected void startUp() {
-        panel = new GroundItemFinderPanel(itemManager, this::highlightTile);
+        panel = new GroundItemFinderPanel(client, itemManager, this::highlightTile);
         BufferedImage icon = getBufferedImageIcon();
 
         navButton = NavigationButton.builder()
-                .tooltip("Ground Item Finder")
+                .tooltip("GroundItems Finder")
                 .icon(icon)
                 .priority(6)
                 .panel(panel)
@@ -70,34 +82,58 @@ public class GroundItemFinderPlugin extends Plugin
 
         clientToolbar.addNavigation(navButton);
         overlayManager.add(groundItemHighlightOverlay);
-
-        log.info("Ground Item Finder Plugin started");
     }
 
-    // In shutDown method, also clear currentlyHighlightedItem
+    /**
+     * Called when the plugin is disabled.
+     * <p>
+     * This method cleans up resources used by the plugin, including:
+     * <ul>
+     * <li>Clearing the list of nearby items.</li>
+     * <li>Removing the navigation button from the client toolbar if it exists.</li>
+     * <li>Removing the {@link GroundItemHighlightOverlay} from the overlay manager.</li>
+     * <li>Clearing any active item highlight on the overlay.</li>
+     * <li>Resetting the {@link #currentlyHighlightedItem} to null.</li>
+     * <li>Setting the panel reference to null.</li>
+     * </ul>
+     * A log message is also produced to indicate the plugin has stopped.
+     */
     @Override
     protected void shutDown() {
         nearbyItems.clear();
 
-        if (navButton != null)
-        {
+        if (navButton != null) {
             clientToolbar.removeNavigation(navButton);
             navButton = null;
         }
 
         overlayManager.remove(groundItemHighlightOverlay);
         groundItemHighlightOverlay.clearHighlightedTile();
-        currentlyHighlightedItem = null;
+        currentlyHighlightedItem = null; // Clear the stored highlighted item
 
         panel = null;
-
-        log.info("Ground Item Finder Plugin stopped");
     }
 
+    /**
+     * Subscribes to and handles {@link GameTick} events from the RuneLite client.
+     * <p>
+     * This method is invoked once every game tick (approximately 0.6 seconds). It performs the following operations:
+     * <ul>
+     * <li>Calls {@code scanGroundItems()} to refresh the list of nearby ground items.</li>
+     * <li>Updates the {@link GroundItemFinderPanel} with the latest list of nearby items if the panel is active.</li>
+     * <li>Checks if a specific item is currently highlighted. If so, it iterates through the {@link #nearbyItems}
+     * list to determine if the previously highlighted item (identified by its ID, quantity, and exact location)
+     * is still present on the ground.</li>
+     * <li>If the {@link #currentlyHighlightedItem} is no longer found on the ground, the highlight is cleared
+     * from the game world, and the internal reference to the highlighted item is set to null.</li>
+     * </ul>
+     *
+     * @param event The {@link GameTick} event, triggered by the game engine.
+     */
     @Subscribe
-    public void onGameTick(GameTick event)
-    {
+    public void onGameTick(GameTick event) {
         scanGroundItems();
+
         if (panel != null)
         {
             panel.updateItems(nearbyItems);
@@ -115,7 +151,7 @@ public class GroundItemFinderPlugin extends Plugin
                 }
             }
             if (!foundSpecificItem) {
-                clearHighlight(currentlyHighlightedItem.getLocation());
+                clearHighlight();
                 currentlyHighlightedItem = null;
             }
         }
@@ -132,40 +168,27 @@ public class GroundItemFinderPlugin extends Plugin
         }
     }
 
-    private void highlightTile(GroundItemEntry itemToHighlight) // Change parameter to GroundItemEntry
-    {
+    private void highlightTile(GroundItemEntry itemToHighlight) {
         groundItemHighlightOverlay.setHighlightedTile(itemToHighlight.getLocation());
         this.currentlyHighlightedItem = itemToHighlight;
         this.currentlyHighlightedTile = itemToHighlight.getLocation();
     }
 
-    private void clearHighlight(WorldPoint worldPoint) // Renamed parameter to avoid confusion, it's not strictly about the passed point
-    {
+    private void clearHighlight() {
         if (Objects.nonNull(this.currentlyHighlightedTile)) {
             groundItemHighlightOverlay.clearHighlightedTile();
             this.currentlyHighlightedTile = null;
         }
     }
 
-    private void scanGroundItems()
-    {
+    private void scanGroundItems() {
         nearbyItems.clear();
 
-        Player localPlayer = client.getLocalPlayer();
-        if (localPlayer == null)
+        Player player = client.getLocalPlayer();
+        if (player == null)
             return;
 
-        int plane = localPlayer.getWorldLocation().getPlane();
-
-        Tile[][] tiles = client.getScene().getTiles()[plane];
-        if (tiles == null)
-            return;
-
-        Scene scene = client.getScene();
-        if (scene == null)
-            return;
-
-        LocalPoint playerLocal = localPlayer.getLocalLocation();
+        LocalPoint playerLocal = player.getLocalLocation();
         if (playerLocal == null)
             return;
 
@@ -174,6 +197,8 @@ public class GroundItemFinderPlugin extends Plugin
 
         int radius = 3; // 9x9 area
 
+        Tile[][] tiles = client.getScene().getTiles()[client.getPlane()];
+
         for (int dx = -radius; dx <= radius; dx++)
         {
             for (int dy = -radius; dy <= radius; dy++)
@@ -181,9 +206,9 @@ public class GroundItemFinderPlugin extends Plugin
                 int scanX = playerX + dx;
                 int scanY = playerY + dy;
 
-                if (scanX < 0 || scanX >= Constants.SCENE_SIZE) // Use Constants.SCENE_SIZE for robustness
+                if (scanX < 0 || scanX >= Constants.SCENE_SIZE)
                     continue;
-                if (scanY < 0 || scanY >= Constants.SCENE_SIZE) // Use Constants.SCENE_SIZE for robustness
+                if (scanY < 0 || scanY >= Constants.SCENE_SIZE)
                     continue;
 
                 Tile tile = tiles[scanX][scanY];
@@ -199,7 +224,10 @@ public class GroundItemFinderPlugin extends Plugin
                         ItemComposition itemDefinition = client.getItemDefinition(tileItem.getId());
                         WorldPoint worldPoint = WorldPoint.fromLocal(client, tile.getLocalLocation());
                         String name = itemDefinition.getName();
-                        nearbyItems.add(new GroundItemEntry(name, tileItem.getId(), tileItem.getQuantity(), worldPoint));
+
+                        long value = (long) itemManager.getItemPrice(tileItem.getId()) * tileItem.getQuantity();
+
+                        nearbyItems.add(new GroundItemEntry(name, tileItem.getId(), tileItem.getQuantity(), worldPoint, value));
                     }
                 }
             }
